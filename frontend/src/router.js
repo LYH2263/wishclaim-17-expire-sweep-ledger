@@ -5,6 +5,8 @@ import Compose from './pages/Compose.vue'
 import Mine from './pages/Mine.vue'
 import Done from './pages/Done.vue'
 import Rules from './pages/Rules.vue'
+import Sweep from './pages/Sweep.vue'
+import Ledger from './pages/Ledger.vue'
 export default createRouter({
   history: createWebHistory(),
   routes: [
@@ -14,5 +16,7 @@ export default createRouter({
     { path: '/mine', component: Mine },
     { path: '/done', component: Done },
     { path: '/rules', component: Rules },
+    { path: '/sweep', component: Sweep },
+    { path: '/ledger', component: Ledger },
   ],
 })

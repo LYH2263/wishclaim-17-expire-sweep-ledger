@@ -9,6 +9,8 @@
       <router-link to="/mine" @click="drawer=false">我的认领</router-link>
       <router-link to="/done" @click="drawer=false">已完成</router-link>
       <router-link to="/rules" @click="drawer=false">规则</router-link>
+      <router-link to="/sweep" @click="drawer=false">过期扫尾</router-link>
+      <router-link to="/ledger" @click="drawer=false">释放台账</router-link>
       <router-link to="/" @click="drawer=false">愿望墙</router-link>
     </aside>
   </div>

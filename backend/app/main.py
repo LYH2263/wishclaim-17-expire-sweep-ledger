@@ -4,7 +4,8 @@ from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from app import seed
 from app.db import connect
-from app.engines.claim_lock import claim_allowed, lock_payload, release_if_expired
+from app.engines.claim_lock import claim_allowed, lock_payload
+from app.modules import expiry_sweep, release_ledger, sweep_projection
 
 app = FastAPI(title="Wishclaim", version="0.1.0")
 app.add_middleware(CORSMiddleware, allow_origins=["*"], allow_methods=["*"], allow_headers=["*"])
@@ -18,27 +19,27 @@ def ttl():
     c = connect(); row = c.execute("SELECT value FROM settings WHERE key='ttl_seconds'").fetchone(); c.close()
     return int(row["value"] if row else 86400)
 
-def sweep(c):
-    for r in c.execute("SELECT * FROM wishes WHERE status='claimed'"):
-        rel = release_if_expired(r["status"], r["expires_at"], now())
-        if rel:
-            c.execute("UPDATE wishes SET status=?, claimer=?, claimed_at=?, expires_at=? WHERE id=?",
-                      (rel["status"], None, None, None, r["id"]))
-
 @app.get("/api/health")
 def health(): return {"ok": True, "project": "wishclaim"}
 
 @app.get("/api/wishes")
 def list_wishes():
-    c = connect(); sweep(c); c.commit()
-    rows = [dict(r) for r in c.execute("SELECT * FROM wishes ORDER BY id DESC")]; c.close(); return rows
+    c = connect()
+    rows = sweep_projection.wall_rows(c, now()); c.close(); return rows
 
 @app.get("/api/wishes/{wid}")
 def get_wish(wid: int):
-    c = connect(); sweep(c); c.commit()
+    c = connect()
     r = c.execute("SELECT * FROM wishes WHERE id=?", (wid,)).fetchone(); c.close()
     if not r: raise HTTPException(404, "not found")
     return dict(r)
+
+@app.get("/api/wishes/{wid}/events")
+def wish_events(wid: int):
+    c = connect()
+    r = c.execute("SELECT id FROM wishes WHERE id=?", (wid,)).fetchone()
+    if not r: c.close(); raise HTTPException(404, "not found")
+    events = sweep_projection.wish_events(c, wid); c.close(); return events
 
 class WishIn(BaseModel):
     title: str
@@ -56,7 +57,7 @@ class ClaimIn(BaseModel):
 
 @app.post("/api/wishes/{wid}/claim")
 def claim(wid: int, body: ClaimIn):
-    c = connect(); sweep(c); c.commit()
+    c = connect()
     r = c.execute("SELECT * FROM wishes WHERE id=?", (wid,)).fetchone()
     if not r: c.close(); raise HTTPException(404, "not found")
     allowed = claim_allowed(r["status"], r["claimer"], now(), r["expires_at"])
@@ -65,7 +66,7 @@ def claim(wid: int, body: ClaimIn):
     p = lock_payload(body.claimer, now(), ttl())
     c.execute("UPDATE wishes SET status=?, claimer=?, claimed_at=?, expires_at=? WHERE id=?",
               (p["status"], p["claimer"], p["claimed_at"], p["expires_at"], wid))
-    c.commit(); c.close(); return p
+    c.commit(); c.close(); return {**p, "reason": allowed["reason"]}
 
 @app.post("/api/wishes/{wid}/release")
 def release(wid: int):
@@ -87,9 +88,28 @@ def fulfill(wid: int):
     c.execute("UPDATE wishes SET status='fulfilled' WHERE id=?", (wid,))
     c.commit(); c.close(); return {"ok": True, "status": "fulfilled"}
 
+@app.get("/api/sweep/dry-run")
+def sweep_dry_run():
+    """List expired locks that a commit would release. Read-only."""
+    c = connect()
+    ts = now()
+    candidates = expiry_sweep.dry_run(c, ts); c.close()
+    return {"at": ts.isoformat(), "candidates": candidates}
+
+@app.post("/api/sweep/commit")
+def sweep_commit():
+    """Release expired locks and append one ledger batch."""
+    c = connect()
+    result = expiry_sweep.commit(c, now()); c.close(); return result
+
+@app.get("/api/ledger")
+def ledger():
+    c = connect()
+    batches = sweep_projection.ledger_view(c); c.close(); return batches
+
 @app.get("/api/mine")
 def mine(claimer: str):
-    c = connect(); sweep(c); c.commit()
+    c = connect()
     rows = [dict(r) for r in c.execute("SELECT * FROM wishes WHERE claimer=?", (claimer,))]; c.close(); return rows
 
 @app.get("/api/done")
@@ -105,6 +125,7 @@ def settings():
 def rules():
     return {
         "mutex": "同一愿望同时只能被一人认领",
-        "ttl": "认领超时未核销则自动释放",
+        "ttl": "认领超时未核销，扫尾提交后自动释放并记入台账",
+        "sweep": "扫尾分干跑与提交：干跑只读，提交才释放愿望并追加台账批次",
         "fulfill": "核销后状态变为 fulfilled",
     }

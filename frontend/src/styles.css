@@ -35,3 +35,17 @@ button.ghost { background: transparent; color: var(--ink); border: 1px solid var
 input, textarea { width: 100%; padding: 10px; border-radius: 12px; border: 1px solid var(--line); font: inherit; margin: 6px 0 12px; background: #fff; }
 .menu-btn { position: fixed; left: 16px; top: 16px; z-index: 10; }
 .err { color: #a33; }
+.ok { color: #3a7a4a; }
+.badges { display: flex; gap: 6px; flex-wrap: wrap; margin: 8px 0 0; }
+.badge {
+  font-size: 11px; padding: 2px 9px; border-radius: 999px;
+  border: 1px solid var(--line); color: var(--muted); background: #fff;
+}
+.badge.yes { color: #3a7a4a; border-color: #bfe0c8; background: #eef7f0; }
+.badge.no { color: #a06a3a; border-color: #e6d3b8; background: #faf1e6; }
+.badge.batch { color: #8a4a5a; border-color: #ecc8d2; background: #fbeef2; font-family: ui-monospace, monospace; }
+.events { list-style: none; padding: 0; margin: 8px 0 0; }
+.events li { padding: 8px 0; border-bottom: 1px dashed var(--line); }
+.batch { margin-top: 18px; }
+.batch-head { display: flex; justify-content: space-between; gap: 12px; align-items: baseline; flex-wrap: wrap; }
+code { font-family: ui-monospace, monospace; font-size: 12px; }

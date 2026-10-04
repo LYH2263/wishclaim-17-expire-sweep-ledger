@@ -4,6 +4,7 @@ import Detail from './pages/Detail.vue'
 import Compose from './pages/Compose.vue'
 import Mine from './pages/Mine.vue'
 import Done from './pages/Done.vue'
+import Ledger from './pages/Ledger.vue'
 import Rules from './pages/Rules.vue'
 export default createRouter({
   history: createWebHistory(),
@@ -13,6 +14,7 @@ export default createRouter({
     { path: '/compose', component: Compose },
     { path: '/mine', component: Mine },
     { path: '/done', component: Done },
+    { path: '/ledger', component: Ledger },
     { path: '/rules', component: Rules },
   ],
 })
